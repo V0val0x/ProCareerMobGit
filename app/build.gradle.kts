@@ -77,6 +77,19 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
+    // Accompanist для FlowRow
+    implementation(libs.accompanist.flowlayout)
+
+    // Navigation для Compose
+    implementation(libs.androidx.navigation.compose)
+
+    // Accompanist для онбординга
+    implementation(libs.accompanist.pager)
+    implementation(libs.accompanist.pager.indicators)
+
+    // Accompanist System UI Controller
+    implementation(libs.accompanist.systemuicontroller)
+
     // Тестирование
     testImplementation(libs.junit)
     debugImplementation(libs.compose.ui.tooling)

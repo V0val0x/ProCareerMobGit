@@ -1,5 +1,6 @@
 package com.example.procareermob.ui.screens
 
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 
 @Composable
 fun AuthScreen(navController: NavController) {
@@ -24,6 +30,9 @@ fun AuthScreen(navController: NavController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+
+
+
         Spacer(modifier = Modifier.height(100.dp))
         // Логотип (добавьте Image с вашим логотипом здесь)
         Text(
@@ -87,11 +96,14 @@ fun AuthScreen(navController: NavController) {
 
         //Spacer(modifier = Modifier.height(32.dp))
 
-        // Показ экрана в зависимости от выбора
-        if (isLoginSelected) {
-            LoginScreen(navController) // Экран входа
-        } else {
-            RegistrationScreen(navController) // Экран регистрации
+
+
+        Crossfade(targetState = isLoginSelected) { screen ->
+            if (screen) {
+                LoginScreen(navController)
+            } else {
+                RegistrationScreen(navController)
+            }
         }
     }
 }
