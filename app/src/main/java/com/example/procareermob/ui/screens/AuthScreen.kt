@@ -34,7 +34,7 @@ fun AuthScreen(navController: NavController) {
 
 
         Spacer(modifier = Modifier.height(100.dp))
-        // Логотип (добавьте Image с вашим логотипом здесь)
+        // Логотип
         Text(
             text = "ProКарьеру",
             fontSize = 32.sp,
