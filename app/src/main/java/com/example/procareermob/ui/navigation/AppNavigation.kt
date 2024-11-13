@@ -26,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.compose.animation.*
 import com.example.procareermob.ui.screens.OnboardingScreen
 import com.example.procareermob.ui.screens.ProfileScreen
+import com.example.procareermob.ui.theme.SplashScreen
 
 @SuppressLint("UnusedContentLambdaTargetStateParameter")
 @OptIn(ExperimentalAnimationApi::class)
@@ -33,7 +34,8 @@ import com.example.procareermob.ui.screens.ProfileScreen
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "auth") {
+    NavHost(navController = navController, startDestination = "splash_screen") {
+        composable("splash_screen") { SplashScreen(navController) }
         composable("auth") { AuthScreen(navController) }
         composable("login") { backStackEntry ->
             AnimatedContent(targetState = backStackEntry, transitionSpec = {

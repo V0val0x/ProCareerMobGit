@@ -1,9 +1,12 @@
 package com.example.procareermob.ui.screens
 
 
+import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -66,6 +69,16 @@ import java.io.InputStream
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.LaunchedEffect
+import coil.compose.rememberAsyncImagePainter
+import com.example.procareermob.model.UserProfile
+import com.example.procareermob.viewmodel.ProfileViewModel
+import com.google.firebase.storage.FirebaseStorage
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,156 +87,293 @@ fun ProfileScreen(navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     val bottomSheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val editProfileSheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
+    val avatarSheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
 
-    // Состояние для хранения URI аватара и ImageBitmap
-    var avatarUri by remember { mutableStateOf<Uri?>(null) }
     var avatarBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
+    var avatarUrl by remember { mutableStateOf<String?>(null) }
+    var userName by remember { mutableStateOf("Anton Petushok") }
+    var userEmail by remember { mutableStateOf("example@mail.com") }
+
+    var tempUserName by remember { mutableStateOf(userName) }
+    var tempUserEmail by remember { mutableStateOf(userEmail) }
+
+    //val storage = FirebaseStorage.getInstance() в случае использования firebase
+
+    // Загрузка аватара из локального хранилища при запуске
+    LaunchedEffect(Unit) {
+        val bitmap = loadAvatarFromInternalStorage(context)
+        if (bitmap != null) {
+            avatarBitmap = bitmap.asImageBitmap()
+        }
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
-            avatarUri = uri
             uri?.let {
-                val inputStream: InputStream? = context.contentResolver.openInputStream(it)
+                val inputStream = context.contentResolver.openInputStream(it)
                 inputStream?.let { stream ->
                     val bitmap = BitmapFactory.decodeStream(stream)
                     avatarBitmap = bitmap.asImageBitmap()
+
+                    // Сохраняем аватар в локальное хранилище
+                    saveAvatarToInternalStorage(context, bitmap)
+
+                    //Вариант с Firebase
+                        /*saveAvatarToFirebase(bitmap, storage) { downloadUrl ->
+                        avatarUrl = downloadUrl
+                        }
+                         */
                 }
             }
         }
     )
 
-    ModalBottomSheetLayout(
-        sheetState = bottomSheetState,
-        sheetContent = {
-            ProfileMenu(
-                onEditProfileClick = {
-                    coroutineScope.launch {
-                        bottomSheetState.hide()
-                        editProfileSheetState.show()
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview(),
+        onResult = { bitmap ->
+            bitmap?.let {
+                avatarBitmap = it.asImageBitmap()
+
+                saveAvatarToInternalStorage(context, it)
+                //Вариант с Firebase
+                /*saveAvatarToFirebase(it, storage) { downloadUrl ->
+                    avatarUrl = downloadUrl
                     }
-                },
-                onDismiss = { coroutineScope.launch { bottomSheetState.hide() } }
-            )
+                 */
+            }
+        }
+    )
+
+    fun showAvatarOptions() {
+        coroutineScope.launch { avatarSheetState.show() }
+    }
+
+    ModalBottomSheetLayout(
+        sheetState = avatarSheetState,
+        sheetContent = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Text(
+                    text = "Выбрать изображение из галереи",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            imagePickerLauncher.launch("image/*")
+                            coroutineScope.launch { avatarSheetState.hide() }
+                        }
+                        .padding(16.dp)
+                )
+                Divider()
+                Text(
+                    text = "Сделать фото",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            cameraLauncher.launch(null)
+                            coroutineScope.launch { avatarSheetState.hide() }
+                        }
+                        .padding(16.dp)
+                )
+            }
         }
     ) {
         ModalBottomSheetLayout(
-            sheetState = editProfileSheetState,
+            sheetState = bottomSheetState,
             sheetContent = {
-                EditProfileContent(onDismiss = { coroutineScope.launch { editProfileSheetState.hide() } })
+                ProfileMenu(
+                    onEditProfileClick = {
+                        coroutineScope.launch {
+                            bottomSheetState.hide()
+                            editProfileSheetState.show()
+                        }
+                    },
+                    onDismiss = { coroutineScope.launch { bottomSheetState.hide() } }
+                )
             }
         ) {
-            Scaffold(
-                topBar = {
-                    CenterAlignedTopAppBar(
-                        title = {
-                            Text(
-                                text = "Мой профиль",
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF3A6EFF)
-                            )
+            ModalBottomSheetLayout(
+                sheetState = editProfileSheetState,
+                sheetContent = {
+                    EditProfileContent(
+                        tempUserName = tempUserName,
+                        tempUserEmail = tempUserEmail,
+                        onUserNameChange = { tempUserName = it },
+                        onUserEmailChange = { tempUserEmail = it },
+                        onSaveChanges = {
+                            // Обновляем основные данные при сохранении
+                            userName = tempUserName
+                            userEmail = tempUserEmail
+                            coroutineScope.launch { editProfileSheetState.hide() }
                         },
-                        actions = {
-                            IconButton(onClick = {
-                                coroutineScope.launch { bottomSheetState.show() }
-                            }) {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_menu),
-                                    contentDescription = "Меню",
-                                    tint = Color.Black // Иконка черного цвета
-                                )
-                            }
-                        },
-                        colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                            containerColor = Color.Transparent // Убираем фон TopAppBar
-                        ),
+                        onDismiss = { coroutineScope.launch { editProfileSheetState.hide() } }
                     )
-                },
-                bottomBar = { BottomNavigationBar(navController) }
-            ) { padding ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Аватар пользователя
-                    Box(
-                        modifier = Modifier
-                            .size(120.dp)
-                            .clip(CircleShape)
-                            .background(Color.Gray, shape = CircleShape)
-                            .clickable {
-                                imagePickerLauncher.launch("image/*")
+                }
+            ) {
+                Scaffold(
+                    topBar = {
+                        CenterAlignedTopAppBar(
+                            title = {
+                                Text("Мой профиль", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A6EFF))
                             },
-                        contentAlignment = Alignment.Center
+                            actions = {
+                                IconButton(onClick = { coroutineScope.launch { bottomSheetState.show() } }) {
+                                    Icon(painter = painterResource(id = R.drawable.ic_menu), contentDescription = "Меню", tint = Color.Black)
+                                }
+                            },
+                            colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent)
+                        )
+                    },
+                    bottomBar = { BottomNavigationBar(navController) }
+                ) { padding ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                            .padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (avatarBitmap != null) {
-                            Image(
-                                bitmap = avatarBitmap!!,
-                                contentDescription = "User Avatar",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape)
-                            )
-                        } else {
-                            Image(
-                                painter = painterResource(id = R.drawable.ic_avatar_placeholder),
-                                contentDescription = "User Avatar",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(120.dp)
-                                    .clip(CircleShape)
-                            )
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(CircleShape)
+                                .background(Color.Gray)
+                                .clickable {  showAvatarOptions() },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (avatarBitmap != null) {
+                                Image(bitmap = avatarBitmap!!, contentDescription = "User Avatar", contentScale = ContentScale.Crop)
+                            } else if (avatarUrl != null) {
+                                Image(painter = rememberAsyncImagePainter(avatarUrl), contentDescription = "User Avatar", contentScale = ContentScale.Crop)
+                            } else {
+                                Image(painter = painterResource(id = R.drawable.ic_avatar_placeholder), contentDescription = "User Avatar", contentScale = ContentScale.Crop)
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(userName, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A6EFF))
+                        Text(userEmail, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF3A6EFF))
 
-                    // Имя и профессия
-                    Text("Антон Петухов", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A6EFF))
-                    Text("Безработный", fontSize = 16.sp, fontWeight = FontWeight.Medium, color = Color(0xFF3A6EFF))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        // Карточка резюме
+                        ResumeCard()
 
-                    // Резюме
-                    ResumeCard()
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                        // Кнопка "Мой роудмап"
+                        Button(
+                            onClick = { /* TODO: Перейти к роудмапу */ },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFFF80AB)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Text("Мой роудмап развития", fontSize = 16.sp, color = Color.White)
+                        }
 
-                    // Кнопки "Мой роудмап" и "Тесты"
-                    Button(
-                        onClick = { /* TODO: Перейти к роудмапу */ },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFFF80AB)),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Text("Мой роудмап развития", fontSize = 16.sp, color = Color.White)
-                    }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = { /* TODO: Перейти к тестам */ },
-                        colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF)),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        Text("Тесты", fontSize = 16.sp, color = Color.White)
+                        // Кнопка "Тесты"
+                        Button(
+                            onClick = { /* TODO: Перейти к тестам */ },
+                            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF)),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Text("Тесты", fontSize = 16.sp, color = Color.White)
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+fun EditProfileContent(
+    tempUserName: String,
+    tempUserEmail: String,
+    onUserNameChange: (String) -> Unit,
+    onUserEmailChange: (String) -> Unit,
+    onSaveChanges: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Редактировать профиль", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF3A6EFF))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Поля для редактирования имени и email
+        OutlinedTextField(
+            value = tempUserName,
+            onValueChange = onUserNameChange,
+            label = { Text("Имя") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = tempUserEmail,
+            onValueChange = onUserEmailChange,
+            label = { Text("Email") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Кнопка "Сохранить изменения"
+        Button(
+            onClick = onSaveChanges,
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Сохранить изменения", color = Color.White)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Кнопка "Отмена"
+        Button(
+            onClick = onDismiss,
+            colors = ButtonDefaults.buttonColors(backgroundColor = Color.Gray),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Отмена", color = Color.White)
+        }
+    }
+}
+
+// Функция для сохранения аватара в Firebase Storage
+fun saveAvatarToFirebase(bitmap: Bitmap, storage: FirebaseStorage, onSuccess: (String) -> Unit) {
+    val outputStream = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
+    val imageData = outputStream.toByteArray()
+    val avatarRef = storage.reference.child("avatars/${UUID.randomUUID()}.jpg")
+
+    avatarRef.putBytes(imageData)
+        .addOnSuccessListener {
+            avatarRef.downloadUrl.addOnSuccessListener { uri ->
+                Log.d("Firebase", "Image uploaded successfully: $uri")
+                onSuccess(uri.toString())
+            }
+        }
+        .addOnFailureListener { exception ->
+            Log.e("Firebase", "Image upload failed: ${exception.message}")
+        }
 }
 
 @Composable
@@ -267,54 +417,6 @@ fun ProfileMenu(onEditProfileClick: () -> Unit, onDismiss: () -> Unit) {
                 .clickable { onDismiss() }
                 .padding(16.dp)
         )
-    }
-}
-
-@Composable
-fun EditProfileContent(onDismiss: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
-            .padding(16.dp)
-    ) {
-        // Заголовок и кнопка закрытия
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Редактировать профиль",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color(0xFF3A6EFF)
-            )
-            IconButton(onClick = onDismiss) {
-                Icon(painter = painterResource(id = R.drawable.ic_close), contentDescription = "Close")
-            }
-        }
-
-        // Поля для редактирования
-        TextFieldWithIcon(hint = "Имя", iconRes = R.drawable.ic_name)
-        TextFieldWithIcon(hint = "Дата рождения", iconRes = R.drawable.ic_calendar)
-        TextFieldWithIcon(hint = "Email", iconRes = R.drawable.ic_email)
-        TextFieldWithIcon(hint = "Старый пароль", iconRes = R.drawable.ic_password, isPassword = true)
-        TextFieldWithIcon(hint = "Новый пароль", iconRes = R.drawable.ic_password, isPassword = true)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Кнопка "Сохранить изменения"
-        Button(
-            onClick = onDismiss,
-            colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF)),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 32.dp)
-                .height(48.dp)
-        ) {
-            Text("Сохранить изменения", color = Color.White)
-        }
     }
 }
 
@@ -364,3 +466,45 @@ fun ResumeCard() {
         }
     }
 }
+
+fun saveAvatarToInternalStorage(context: Context, bitmap: Bitmap): Boolean {
+    return try {
+        val file = File(context.filesDir, "user_avatar.png")
+        val outputStream = FileOutputStream(file)
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        outputStream.flush()
+        outputStream.close()
+        true
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    }
+}
+
+// Загрузка аватара из внутреннего хранилища
+fun loadAvatarFromInternalStorage(context: Context): Bitmap? {
+    return try {
+        val file = File(context.filesDir, "user_avatar.png")
+        if (file.exists()) {
+            val inputStream = FileInputStream(file)
+            BitmapFactory.decodeStream(inputStream)
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
+
+// Удаление аватара из внутреннего хранилища (опционально)
+fun deleteAvatarFromInternalStorage(context: Context): Boolean {
+    return try {
+        val file = File(context.filesDir, "user_avatar.png")
+        file.delete()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    }
+}
+
