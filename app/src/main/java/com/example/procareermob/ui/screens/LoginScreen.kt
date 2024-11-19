@@ -1,11 +1,15 @@
 package com.example.procareermob.ui.screens
 
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.AnimatedVisibility
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.SharedPreferences
+import android.widget.Toast
+import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
+//noinspection UsingMaterialAndMaterial3Libraries
 import androidx.compose.material.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,9 +27,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.procareermob.R
+import com.example.procareermob.network.LoginRequest
+import com.example.procareermob.network.RetrofitClient
+import com.example.procareermob.network.LoginResponse
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
+import androidx.compose.animation.core.animateDpAsState
+import com.example.procareermob.network.saveUserData
 
+@SuppressLint("UseOfNonLambdaOffsetOverload")
 @Composable
-fun LoginScreen(navController: NavController) {
+fun LoginScreen(navController: NavController, context: Context) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf(false) }
@@ -33,6 +46,52 @@ fun LoginScreen(navController: NavController) {
     var isPasswordVisible by remember { mutableStateOf(false) }
     var emailFocused by remember { mutableStateOf(false) }
     var passwordFocused by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var loginError by remember { mutableStateOf<String?>(null) }
+
+    // Получение SharedPreferences для сохранения данных
+    val sharedPreferences = context.getSharedPreferences("user_data", Context.MODE_PRIVATE)
+
+    // Функция для сохранения данных в SharedPreferences
+    fun saveUserData(userId: Int, token: String) {
+        val editor = sharedPreferences.edit()
+        editor.putInt("user_id", userId)
+        editor.putString("token", token)
+        editor.apply()
+    }
+
+    // Функция для отправки запроса на сервер
+    fun loginUser(email: String, password: String) {
+        isLoading = true
+        RetrofitClient.api.login(LoginRequest(email, password)).enqueue(object : Callback<LoginResponse> {
+            override fun onResponse(call: Call<LoginResponse>, response: Response<LoginResponse>) {
+                isLoading = false
+                if (response.isSuccessful) {
+                    val loginResponse = response.body()
+                    if (loginResponse != null) {
+                        // Сохранение данных в SharedPreferences
+                        val userId = loginResponse.data.userId
+                        val token = loginResponse.data.token
+                        saveUserData(userId, token, context)  // Сохраняем данные
+
+                        // Переход на главный экран
+                        navController.navigate("main") {
+                            popUpTo("login") { inclusive = true }
+                        }
+                    } else {
+                        loginError = "Неверный ответ от сервера"
+                    }
+                } else {
+                    loginError = "Ошибка аутентификации: ${response.message()}"
+                }
+            }
+
+            override fun onFailure(call: Call<LoginResponse>, t: Throwable) {
+                isLoading = false
+                loginError = "Ошибка сети: ${t.message}"
+            }
+        })
+    }
 
     Column(
         modifier = Modifier
@@ -41,7 +100,6 @@ fun LoginScreen(navController: NavController) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-
         Spacer(modifier = Modifier.height(100.dp))
 
         OutlinedTextField(
@@ -66,12 +124,9 @@ fun LoginScreen(navController: NavController) {
                         alpha = 0.5f,
                     )
                 }
-                .onFocusChanged { focusState ->
-                    emailFocused = focusState.isFocused
-                },
+                .onFocusChanged { focusState -> emailFocused = focusState.isFocused },
             shape = RoundedCornerShape(16.dp),
             leadingIcon = {
-                // Анимация для значка при фокусе
                 val iconOffset by animateDpAsState(if (emailFocused) (-16).dp else 0.dp)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_email),
@@ -118,13 +173,10 @@ fun LoginScreen(navController: NavController) {
                         alpha = 0.5f,
                     )
                 }
-                .onFocusChanged { focusState ->
-                    passwordFocused = focusState.isFocused
-                },
+                .onFocusChanged { focusState -> passwordFocused = focusState.isFocused },
             shape = RoundedCornerShape(16.dp),
             visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             leadingIcon = {
-                // Анимация для значка при фокусе
                 val iconOffset by animateDpAsState(if (passwordFocused) (-16).dp else 0.dp)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_password),
@@ -169,10 +221,7 @@ fun LoginScreen(navController: NavController) {
 
         Button(
             onClick = {
-                // Переход на главный экран
-                navController.navigate("main") {
-                    popUpTo("login") { inclusive = true }
-                }
+                loginUser(email, password)
             },
             modifier = Modifier
                 .fillMaxWidth()
@@ -181,7 +230,23 @@ fun LoginScreen(navController: NavController) {
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF))
         ) {
-            Text("Войти", fontSize = 18.sp, color = Color.White)
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Text("Войти", fontSize = 18.sp, color = Color.White)
+            }
+        }
+
+        // Вывод ошибки при авторизации
+        AnimatedVisibility(visible = loginError != null) {
+            Text(
+                text = loginError ?: "",
+                color = Color.Red,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 8.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

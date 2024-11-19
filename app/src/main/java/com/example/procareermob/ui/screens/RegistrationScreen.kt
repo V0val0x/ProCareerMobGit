@@ -1,5 +1,9 @@
 package com.example.procareermob.ui.screens
 
+import android.annotation.SuppressLint
+import android.content.Context
+import android.content.SharedPreferences
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.clickable
@@ -23,18 +27,69 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.procareermob.R
+import com.example.procareermob.network.RegistrationRequest
+import com.example.procareermob.network.RetrofitClient
+import com.example.procareermob.network.RegistrationResponse
+import com.example.procareermob.network.saveUserData
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
+@SuppressLint("UseOfNonLambdaOffsetOverload")
 @Composable
-fun RegistrationScreen(navController: NavController) {
+fun RegistrationScreen(navController: NavController, context: Context) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf(false) }
     var passwordError by remember { mutableStateOf(false) }
+    var nameError by remember { mutableStateOf(false) }
     var isPasswordVisible by remember { mutableStateOf(false) }
-    var emailFocused by remember { mutableStateOf(false) }
-    var passwordFocused by remember { mutableStateOf(false) }
-    var nameFocused by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var registrationError by remember { mutableStateOf<String?>(null) }
+
+    val sharedPreferences = context.getSharedPreferences("user_data", Context.MODE_PRIVATE)
+
+    // Функция для сохранения данных в SharedPreferences
+    fun saveUserData(userId: Int, token: String) {
+        val editor = sharedPreferences.edit()
+        editor.putInt("user_id", userId)
+        editor.putString("token", token)
+        editor.apply()
+    }
+
+    // Функция для отправки запроса на сервер
+    fun registerUser(name: String, email: String, password: String) {
+        isLoading = true
+        RetrofitClient.api.register(RegistrationRequest(email, password, name)).enqueue(object : Callback<RegistrationResponse> {
+            override fun onResponse(call: Call<RegistrationResponse>, response: Response<RegistrationResponse>) {
+                isLoading = false
+                if (response.isSuccessful) {
+                    val registrationResponse = response.body()
+                    if (registrationResponse != null) {
+                        // Сохранение данных в SharedPreferences
+                        val userId = registrationResponse.data.userId
+                        val token = registrationResponse.data.token
+                        saveUserData(userId, token, context)  // Сохраняем данные
+
+                        // Переход на главный экран
+                        navController.navigate("main") {
+                            popUpTo("registration") { inclusive = true }
+                        }
+                    } else {
+                        registrationError = "Неверный ответ от сервера"
+                    }
+                } else {
+                    registrationError = "Ошибка регистрации: ${response.message()}"
+                }
+            }
+
+            override fun onFailure(call: Call<RegistrationResponse>, t: Throwable) {
+                isLoading = false
+                registrationError = "Ошибка сети: ${t.message}"
+            }
+        })
+    }
 
     Column(
         modifier = Modifier
@@ -46,12 +101,14 @@ fun RegistrationScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(100.dp))
 
+        // Поле для ввода имени
         OutlinedTextField(
             value = name,
             onValueChange = {
                 name = it
             },
             label = { Text("Имя") },
+            isError = nameError,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(4.dp)
@@ -66,23 +123,33 @@ fun RegistrationScreen(navController: NavController) {
                         alpha = 0.5f,
                     )
                 }
-                .onFocusChanged { focusState ->
-                    nameFocused = focusState.isFocused
-                },
+                .onFocusChanged { focusState -> nameError = name.isEmpty() },
             shape = RoundedCornerShape(16.dp),
             leadingIcon = {
-                // Анимация для значка при фокусе
-                val iconOffset by animateDpAsState(if (nameFocused) (-16).dp else 0.dp)
+                val iconOffset by animateDpAsState(if (name.isNotEmpty()) (-16).dp else 0.dp)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_name),
-                    contentDescription = "Email Icon",
+                    contentDescription = "Name Icon",
                     modifier = Modifier.offset(x = iconOffset)
                 )
             }
         )
 
+        // Текст ошибки для имени
+        AnimatedVisibility(visible = nameError) {
+            Text(
+                text = "Имя не может быть пустым",
+                color = Color.Red,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .padding(start = 16.dp, top = 4.dp)
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Поле для ввода email
         OutlinedTextField(
             value = email,
             onValueChange = {
@@ -105,13 +172,10 @@ fun RegistrationScreen(navController: NavController) {
                         alpha = 0.5f,
                     )
                 }
-                .onFocusChanged { focusState ->
-                    emailFocused = focusState.isFocused
-                },
+                .onFocusChanged { focusState -> emailError = !email.contains("@") },
             shape = RoundedCornerShape(16.dp),
             leadingIcon = {
-                // Анимация для значка при фокусе
-                val iconOffset by animateDpAsState(if (emailFocused) (-16).dp else 0.dp)
+                val iconOffset by animateDpAsState(if (email.isNotEmpty()) (-16).dp else 0.dp)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_email),
                     contentDescription = "Email Icon",
@@ -135,6 +199,7 @@ fun RegistrationScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Поле для ввода пароля
         OutlinedTextField(
             value = password,
             onValueChange = {
@@ -157,14 +222,11 @@ fun RegistrationScreen(navController: NavController) {
                         alpha = 0.5f,
                     )
                 }
-                .onFocusChanged { focusState ->
-                    passwordFocused = focusState.isFocused
-                },
+                .onFocusChanged { focusState -> passwordError = password.length <= 4 },
             shape = RoundedCornerShape(16.dp),
             visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             leadingIcon = {
-                // Анимация для значка при фокусе
-                val iconOffset by animateDpAsState(if (passwordFocused) (-16).dp else 0.dp)
+                val iconOffset by animateDpAsState(if (password.isNotEmpty()) (-16).dp else 0.dp)
                 Icon(
                     painter = painterResource(id = R.drawable.ic_password),
                     contentDescription = "Password Icon",
@@ -200,9 +262,10 @@ fun RegistrationScreen(navController: NavController) {
 
         Button(
             onClick = {
-                // Переход на главный экран
-                navController.navigate("onboarding") {
-                    popUpTo("registration") { inclusive = true }
+                if (email.isNotEmpty() && password.isNotEmpty() && name.isNotEmpty() && !emailError && !passwordError) {
+                    registerUser(name, email, password)
+                } else {
+                    Toast.makeText(context, "Заполните все поля корректно", Toast.LENGTH_SHORT).show()
                 }
             },
             modifier = Modifier
@@ -212,7 +275,23 @@ fun RegistrationScreen(navController: NavController) {
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF3A6EFF))
         ) {
-            Text("Регистрация", fontSize = 18.sp, color = Color.White)
+            if (isLoading) {
+                CircularProgressIndicator(color = Color.White)
+            } else {
+                Text("Регистрация", fontSize = 18.sp, color = Color.White)
+            }
+        }
+
+        // Вывод ошибки при регистрации
+        AnimatedVisibility(visible = registrationError != null) {
+            Text(
+                text = registrationError ?: "",
+                color = Color.Red,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 8.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))

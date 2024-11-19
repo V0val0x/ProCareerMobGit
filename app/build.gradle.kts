@@ -78,19 +78,12 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Accompanist для FlowRow
-    implementation(libs.accompanist.flowlayout)
-
-    // Navigation для Compose
-    implementation(libs.androidx.navigation.compose)
-
-    // Accompanist для онбординга
-    implementation(libs.accompanist.pager)
-    implementation(libs.accompanist.pager.indicators)
-
-    // Accompanist System UI Controller
-    implementation(libs.accompanist.systemuicontroller)
-    implementation(libs.androidx.core.splashscreen)
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(platform(libs.firebase.bom.v3211))
+    implementation(libs.firebase.firestore.ktx)
+    implementation(libs.firebase.storage.ktx)
 
     // Тестирование
     testImplementation(libs.junit)
@@ -98,10 +91,28 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    //firebase
+    // Accompanist для FlowRow и других UI элементов
+    implementation(libs.accompanist.flowlayout)
+    implementation(libs.accompanist.pager)
+    implementation(libs.accompanist.pager.indicators)
+    implementation(libs.accompanist.systemuicontroller)
+    implementation(libs.androidx.core.splashscreen)
+
+    // Firebase (for comparison)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(platform(libs.firebase.bom.v3211))
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.storage.ktx)
+
+    implementation(libs.retrofit)
+    implementation(libs.converter.moshi)
+    implementation(libs.moshi.kotlin)
+
+    // OkHttp (для логирования запросов и ответов)
+    implementation(libs.logging.interceptor)
+
+    implementation(libs.gson)
+    implementation(libs.retrofit)
+    implementation(libs.gson.converter)
 }

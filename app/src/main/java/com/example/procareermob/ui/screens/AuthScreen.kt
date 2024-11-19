@@ -18,10 +18,13 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun AuthScreen(navController: NavController) {
     var isLoginSelected by remember { mutableStateOf(true) } // Состояние для выбора экрана
+
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -100,9 +103,9 @@ fun AuthScreen(navController: NavController) {
 
         Crossfade(targetState = isLoginSelected) { screen ->
             if (screen) {
-                LoginScreen(navController)
+                LoginScreen(navController, context)
             } else {
-                RegistrationScreen(navController)
+                RegistrationScreen(navController,  context = context)
             }
         }
     }
