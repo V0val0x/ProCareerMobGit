@@ -1,8 +1,7 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
     <style name="Base.Theme.ProCareerMob" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="postSplashScreenTheme">@style/Theme.ProCareerMob</item>
     </style>
-
-    <style name="Theme.ProCareerMob" parent="Base.Theme.ProCareerMob" />
 </resources>

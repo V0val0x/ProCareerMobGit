@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "755204106166",
+    "project_id": "procareer-3493c",
+    "storage_bucket": "procareer-3493c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:755204106166:android:8538d92dc96231c59b4317",
+        "android_client_info": {
+          "package_name": "com.example.procareermob"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAChIaSOKD8qxxRHXUOJX0bepQudTRtkw8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

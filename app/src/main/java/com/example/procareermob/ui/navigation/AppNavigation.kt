@@ -1,5 +1,8 @@
 package com.example.procareermob.ui.navigation
 
+
+import android.content.Context
+import android.content.SharedPreferences
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -24,23 +27,37 @@ import com.example.procareermob.ui.screens.TestListScreen
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.compose.animation.*
+import androidx.compose.ui.platform.LocalContext
+import com.example.procareermob.network.saveUserData
+import com.example.procareermob.network.getUserData
 import com.example.procareermob.ui.screens.OnboardingScreen
 import com.example.procareermob.ui.screens.ProfileScreen
+import com.example.procareermob.ui.theme.SplashScreen
 
 @SuppressLint("UnusedContentLambdaTargetStateParameter")
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun AppNavigation() {
+fun AppNavigation(context: Context) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "auth") {
+    // Получаем SharedPreferences
+    val sharedPreferences: SharedPreferences = context.getSharedPreferences("user_data", Context.MODE_PRIVATE)
+    val (userId, token) = getUserData(context)
+
+    // Определяем стартовый экран в зависимости от наличия токена
+    val startDestination = if (token != null) "main" else "auth"
+
+        //val context = LocalContext.current
+
+    NavHost(navController = navController, startDestination = "splash_screen") {
+        composable("splash_screen") { SplashScreen(navController) }
         composable("auth") { AuthScreen(navController) }
         composable("login") { backStackEntry ->
             AnimatedContent(targetState = backStackEntry, transitionSpec = {
                 slideInHorizontally(initialOffsetX = { 1000 }) + fadeIn() with
                         slideOutHorizontally(targetOffsetX = { -1000 }) + fadeOut()
             }, label = "") {
-                LoginScreen(navController)
+                LoginScreen(navController,  context = context)
             }
         }
         composable("registration") { backStackEntry ->
@@ -48,7 +65,7 @@ fun AppNavigation() {
                 slideInHorizontally(initialOffsetX = { 1000 }) + fadeIn() with
                         slideOutHorizontally(targetOffsetX = { -1000 }) + fadeOut()
             }, label = "") {
-                RegistrationScreen(navController)
+                RegistrationScreen(navController,  context = context)
             }
         }
 
